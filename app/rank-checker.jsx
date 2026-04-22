@@ -49,6 +49,63 @@ function csvEscape(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+function cleanDomain(raw) {
+  return raw.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase();
+}
+
+/** Require hostname + TLD (e.g. site.com), DNS-style labels. */
+function validateTargetDomain(raw) {
+  const host = cleanDomain(raw);
+  if (!host) return { ok: false, cleaned: "", reason: "Enter your website domain." };
+  if (host.includes(":")) return { ok: false, cleaned: host, reason: "Remove the port (use hostname only, e.g. example.com)." };
+  if (!host.includes(".")) {
+    return { ok: false, cleaned: host, reason: "Include a TLD: .com, .in, .co.uk, etc. (not just the brand name)." };
+  }
+  const labels = host.split(".");
+  if (labels.some(l => !l)) return { ok: false, cleaned: host, reason: "Invalid domain format." };
+  if (labels.some(l => l.length > 63)) return { ok: false, cleaned: host, reason: "A part of the domain is too long." };
+  const labelOk = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?|xn--[a-z0-9-]+)$/i;
+  for (const l of labels) {
+    if (!labelOk.test(l)) return { ok: false, cleaned: host, reason: "Use only letters, numbers, and hyphens between dots." };
+  }
+  const tld = labels[labels.length - 1];
+  if (tld.length < 2) return { ok: false, cleaned: host, reason: "The ending (.com, .in, …) must be at least two characters." };
+  return { ok: true, cleaned: host };
+}
+
+function validateAppsScriptWebAppUrl(raw) {
+  const t = (raw || "").trim();
+  if (!t) return { ok: false, reason: "Paste your deployed Web App URL." };
+  let url;
+  try {
+    url = new URL(t);
+  } catch {
+    return { ok: false, reason: "Must be a valid URL (starts with https://)." };
+  }
+  if (url.protocol !== "https:") return { ok: false, reason: "URL must use https." };
+  if (!/script\.google\.com$/i.test(url.hostname)) {
+    return { ok: false, reason: "Must be a Google Apps Script host (script.google.com)." };
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  if (!path.includes("/macros/")) {
+    return { ok: false, reason: "Use the Web App link from Deploy — URL path should contain /macros/…" };
+  }
+  if (!/\/(exec|dev)$/i.test(path)) {
+    return { ok: false, reason: "Link should end with /exec (production) or /dev (testing)." };
+  }
+  return { ok: true };
+}
+
+function validateSpreadsheetId(raw, required) {
+  const id = (raw || "").trim();
+  if (!required) return { ok: true, cleaned: id };
+  if (!id) return { ok: false, reason: "Spreadsheet ID is required when “Append to Sheet” is on." };
+  if (!/^[a-zA-Z0-9_-]{30,120}$/.test(id)) {
+    return { ok: false, reason: "ID looks wrong — copy the part between /d/ and /edit in the sheet URL." };
+  }
+  return { ok: true, cleaned: id };
+}
+
 const C = {
   bg: "#080b10",
   bgElev: "#0c1018",
@@ -205,9 +262,15 @@ export default function App() {
   const pct  = prog.total ? Math.round((prog.n / prog.total) * 100) : 0;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  function cleanDomain(raw) {
-    return raw.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase();
-  }
+  const domainValidation = validateTargetDomain(domain);
+  const scriptUrlValidation = validateAppsScriptWebAppUrl(scriptUrl);
+  const sheetIdValidation = validateSpreadsheetId(sheetId, appendToSheet);
+  const keywordsOk = kws > 0;
+  const canStartCheck =
+    scriptUrlValidation.ok &&
+    domainValidation.ok &&
+    sheetIdValidation.ok &&
+    keywordsOk;
 
   // ── Call Apps Script ──────────────────────────────────────────────────────
   async function callScript(body) {
@@ -228,6 +291,12 @@ export default function App() {
   async function testConnection() {
     setTesting(true);
     setConnMsg("");
+    const urlCheck = validateAppsScriptWebAppUrl(scriptUrl);
+    if (!urlCheck.ok) {
+      setConnMsg("✗ " + urlCheck.reason);
+      setTesting(false);
+      return;
+    }
     try {
       const d = await callScript({ action: "ping" });
       setConnMsg("✓ " + (d.message || "Connected"));
@@ -240,7 +309,12 @@ export default function App() {
   // ── Start checking: chunked serper_batch (one Apps Script round trip per chunk) ──
   async function startCheck() {
     const keywords = kwRaw.split("\n").map(k => k.trim()).filter(Boolean);
-    const d        = cleanDomain(domain);
+    const dv = validateTargetDomain(domain);
+    const sv = validateAppsScriptWebAppUrl(scriptUrl);
+    const sh = validateSpreadsheetId(sheetId, appendToSheet);
+    if (!dv.ok || !sv.ok || !sh.ok || !keywords.length) return;
+
+    const d = dv.cleaned;
 
     const init = keywords.map((kw, i) => ({
       id: i, keyword: kw, domain: d,
@@ -299,7 +373,7 @@ export default function App() {
             url:          item.url ?? null,
             title:        item.title ?? null,
             totalScanned: item.totalScanned || 0,
-            status:       item.found ? "done" : "not found",
+            status:       item.position ? "done" : "not found",
             checkedAt,
           };
         }
@@ -466,6 +540,9 @@ export default function App() {
                 {connMsg}
               </p>
             )}
+            {scriptUrl.trim() && !scriptUrlValidation.ok && (
+              <p style={{ fontSize: 12, marginTop: 8, color: C.red, lineHeight: 1.45 }}>{scriptUrlValidation.reason}</p>
+            )}
           </div>
 
           <hr style={divider} />
@@ -474,7 +551,9 @@ export default function App() {
             <div>
               <label style={lbl}>WEBSITE DOMAIN *</label>
               <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="exellercomputer.com" style={{ ...inp(), width: "100%" }} />
-              <p style={{ fontSize: 11, color: C.dim, marginTop: 6, marginBottom: 0, lineHeight: 1.4 }}>Use full hostname or brand only — e.g. <code style={{ color: C.cyan }}>exellercomputer</code> matches <code style={{ color: C.cyan }}>exellercomputer.com</code> in results.</p>
+              {domain.trim() && !domainValidation.ok && (
+                <p style={{ fontSize: 12, marginTop: 6, color: C.red, lineHeight: 1.45 }}>{domainValidation.reason}</p>
+              )}
             </div>
             <div>
               <label style={lbl}>CLIENT NAME</label>
@@ -529,6 +608,9 @@ export default function App() {
             <input value={sheetId} onChange={e => setSheetId(e.target.value)} placeholder="Spreadsheet ID from the /d/___/ part of the URL"
               disabled={!appendToSheet}
               style={{ ...inp(), width: "100%", opacity: appendToSheet ? 1 : 0.42 }} />
+            {appendToSheet && !sheetIdValidation.ok && (
+              <p style={{ fontSize: 12, marginTop: 8, color: C.red, lineHeight: 1.45 }}>{sheetIdValidation.reason}</p>
+            )}
           </div>
 
           <hr style={divider} />
@@ -542,10 +624,13 @@ export default function App() {
               placeholder={"laptop repair delhi\nlaptop repair in dwarka\nbuy refurbished laptop\nhp laptop service center patna\nlaptop screen replacement cost\ndell laptop repair near me\n..."}
               style={{ ...inp(), width: "100%", resize: "vertical", lineHeight: 1.75 }} />
             <p style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>Paste from Sheets or Excel. Up to 100 organic results per keyword.</p>
+            {kwRaw.trim() && !keywordsOk && (
+              <p style={{ fontSize: 12, marginTop: 6, color: C.red, lineHeight: 1.45 }}>Add at least one non-empty line (one keyword per line).</p>
+            )}
           </div>
 
           <button className="btn btn-g" onClick={startCheck}
-            disabled={!scriptUrl.trim() || !domain.trim() || !kwRaw.trim() || (appendToSheet && !sheetId.trim())}
+            disabled={!canStartCheck}
             style={{ width: "100%", padding: "14px 18px", fontSize: 15, marginTop: 8 }}>
             Run check · {kws} keyword{kws !== 1 ? "s" : ""} · {loc.label}
           </button>
