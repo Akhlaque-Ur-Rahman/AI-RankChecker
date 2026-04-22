@@ -1,0 +1,14 @@
+# Next.js app
+web/node_modules/
+web/.next/
+web/out/
+web/.env*.local
+web/npm-debug.log*
+web/.turbo
+web/tsconfig.tsbuildinfo
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

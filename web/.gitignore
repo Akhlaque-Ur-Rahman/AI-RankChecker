@@ -1,0 +1,15 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# next
+/.next/
+/out/
+
+# debug
+npm-debug.log*
+
+# env
+.env*.local
