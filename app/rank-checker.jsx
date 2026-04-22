@@ -106,6 +106,15 @@ function validateSpreadsheetId(raw, required) {
   return { ok: true, cleaned: id };
 }
 
+/** Extra guidance when the live Web App is older than the Next.js app. */
+function sheetAppendFollowUp(serverMessage) {
+  const m = String(serverMessage || "");
+  if (m.includes("Unknown action: append_rankings")) {
+    return "\n\nRedeploy Apps Script: open script.google.com → paste the latest apps-script/gsc-rank-checker-v2.gs from this project → Deploy → Manage deployments → ✏️ on the Web App → Version: New version → Deploy. (Your /exec URL stays the same.)";
+  }
+  return "";
+}
+
 const C = {
   bg: "#080b10",
   bgElev: "#0c1018",
@@ -412,7 +421,8 @@ export default function App() {
         });
         setSheetMsg("✓ Appended run to Google Sheet (Monthly_Ranks tab).");
       } catch (err) {
-        setSheetMsg("✗ Sheet append failed: " + err.message);
+        const base = "✗ Sheet append failed: " + err.message;
+        setSheetMsg(base + sheetAppendFollowUp(err.message));
       }
     }
 
@@ -611,6 +621,11 @@ export default function App() {
             {appendToSheet && !sheetIdValidation.ok && (
               <p style={{ fontSize: 12, marginTop: 8, color: C.red, lineHeight: 1.45 }}>{sheetIdValidation.reason}</p>
             )}
+            {appendToSheet && (
+              <p style={{ fontSize: 11, color: C.dim, marginTop: 10, lineHeight: 1.55 }}>
+                Sheet append uses the <code style={{ fontSize: 10, color: C.cyan }}>append_rankings</code> action in Apps Script. If you see “Unknown action”, replace the script with the repo file <code style={{ fontSize: 10, color: C.cyan }}>apps-script/gsc-rank-checker-v2.gs</code>, then <strong style={{ color: C.muted }}>Deploy → Manage deployments → Edit → New version → Deploy</strong> (required after any code change).
+              </p>
+            )}
           </div>
 
           <hr style={divider} />
@@ -714,7 +729,7 @@ export default function App() {
       </div>
 
       {sheetMsg && phase === "done" && (
-        <div style={{ padding: "12px 22px", fontSize: 13, fontWeight: 500, color: sheetMsg.startsWith("✓") ? C.greenHi : C.red, borderBottom: `1px solid ${C.border}`, background: sheetMsg.startsWith("✓") ? `${C.green}0d` : `${C.red}0c` }}>
+        <div style={{ padding: "12px 22px", fontSize: 13, fontWeight: 500, color: sheetMsg.startsWith("✓") ? C.greenHi : C.red, borderBottom: `1px solid ${C.border}`, background: sheetMsg.startsWith("✓") ? `${C.green}0d` : `${C.red}0c`, whiteSpace: "pre-line" }}>
           {sheetMsg}
         </div>
       )}
