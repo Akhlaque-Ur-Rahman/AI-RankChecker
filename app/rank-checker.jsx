@@ -299,7 +299,7 @@ export default function App() {
             url:          item.url ?? null,
             title:        item.title ?? null,
             totalScanned: item.totalScanned || 0,
-            status:       item.position ? "done" : "not found",
+            status:       item.found ? "done" : "not found",
             checkedAt,
           };
         }
@@ -474,6 +474,7 @@ export default function App() {
             <div>
               <label style={lbl}>WEBSITE DOMAIN *</label>
               <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="exellercomputer.com" style={{ ...inp(), width: "100%" }} />
+              <p style={{ fontSize: 11, color: C.dim, marginTop: 6, marginBottom: 0, lineHeight: 1.4 }}>Use full hostname or brand only — e.g. <code style={{ color: C.cyan }}>exellercomputer</code> matches <code style={{ color: C.cyan }}>exellercomputer.com</code> in results.</p>
             </div>
             <div>
               <label style={lbl}>CLIENT NAME</label>

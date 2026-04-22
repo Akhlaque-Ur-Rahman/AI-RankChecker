@@ -44,6 +44,36 @@ function buildSerperPayload_(q, opts) {
   return payload;
 }
 
+/** Strip protocol/path; lowercase. User may paste a URL or type only the brand (no dot). */
+function normalizeTargetDomain_(raw) {
+  var s = String(raw || "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").toLowerCase();
+  var slash = s.indexOf("/");
+  if (slash !== -1) s = s.substring(0, slash);
+  return s;
+}
+
+function extractHostFromUrl_(link) {
+  return String(link || "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split("/")[0]
+    .toLowerCase();
+}
+
+/**
+ * Match SERP host to target: exact domain, subdomain of full domain, or bare label (exellercomputer → exellercomputer.com).
+ */
+function hostMatchesTarget_(host, clean) {
+  if (!host || !clean) return false;
+  if (host === clean) return true;
+  if (host.endsWith("." + clean)) return true;
+  if (clean.indexOf(".") === -1) {
+    if (host.startsWith(clean + ".")) return true;
+    if (host.indexOf("." + clean + ".") >= 0) return true;
+  }
+  return false;
+}
+
 function doPost(e) {
   try {
     const params = JSON.parse(e.postData.contents);
@@ -99,12 +129,12 @@ function serperSearch(params) {
   if (data.error) return buildResponse({ error: "Serper: " + data.error });
 
   if (targetDomain) {
-    const clean = targetDomain.replace(/^www\./, "").toLowerCase();
+    const clean = normalizeTargetDomain_(targetDomain);
     const organic = data.organic || [];
     let position = null, url = null, title = null;
     for (const item of organic) {
-      const host = (item.link || "").replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase();
-      if (host === clean || host.endsWith("." + clean)) {
+      const host = extractHostFromUrl_(item.link);
+      if (hostMatchesTarget_(host, clean)) {
         position = item.position; url = item.link; title = item.title; break;
       }
     }
@@ -130,7 +160,7 @@ function serperBatch(params) {
   if (typeof gap !== "number" || isNaN(gap)) gap = 280;
   gap = Math.max(0, Math.min(2000, Math.round(gap)));
 
-  const clean = (targetDomain || "").replace(/^www\./, "").toLowerCase();
+  const clean = normalizeTargetDomain_(targetDomain);
   const results = [];
   const list = keywords.slice(0, 100);
 
@@ -153,8 +183,8 @@ function serperBatch(params) {
       let position = null, url = null, title = null;
 
       for (const item of organic) {
-        const host = (item.link || "").replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].toLowerCase();
-        if (host === clean || host.endsWith("." + clean)) {
+        const host = extractHostFromUrl_(item.link);
+        if (hostMatchesTarget_(host, clean)) {
           position = item.position; url = item.link; title = item.title; break;
         }
       }
