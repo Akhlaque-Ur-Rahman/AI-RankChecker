@@ -1,11 +1,21 @@
-# Next.js app
-web/node_modules/
-web/.next/
-web/out/
-web/.env*.local
-web/npm-debug.log*
-web/.turbo
-web/tsconfig.tsbuildinfo
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# next
+/.next/
+/out/
+
+# debug
+npm-debug.log*
+
+# env
+.env*.local
+
+# typescript
+*.tsbuildinfo
 
 # OS / editor
 .DS_Store

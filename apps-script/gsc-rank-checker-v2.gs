@@ -1,6 +1,6 @@
 // ================================================================
 //  RANK CHECKER — Google Apps Script
-//  Repo copy: web/apps-script/gsc-rank-checker-v2.gs (Next.js project ke andar)
+//  Repo copy: apps-script/gsc-rank-checker-v2.gs (same repo as Next.js app root)
 //  Paste this entire file into script.google.com → Deploy as Web App
 //
 //  Handles Serper.dev (any keyword) + optional GSC (owned sites)
@@ -15,7 +15,7 @@
 //  4. For GSC support: click Services (+) → add "Search Console API"
 //  5. Deploy → New Deployment → Web App
 //       Execute as: Me | Who has access: Anyone
-//  6. Copy the Web App URL → paste into RankCheck Pro (npm run dev in /web)
+//  6. Copy the Web App URL → paste into RankCheck Pro (npm run dev at repo root)
 // ================================================================
 
 function doGet(e) {
